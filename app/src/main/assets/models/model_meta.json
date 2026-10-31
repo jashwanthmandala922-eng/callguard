@@ -1,0 +1,32 @@
+{
+  "name": "callguard-demo-cnn",
+  "version": "0.1.0",
+  "purpose": "DEMO ONLY - trained on synthetic audio, no real-world validation",
+  "input_shape": [
+    1,
+    64,
+    198,
+    1
+  ],
+  "output": "sigmoid fake probability",
+  "dsp": {
+    "sample_rate": 16000,
+    "n_fft": 512,
+    "win": 400,
+    "hop": 160,
+    "n_mel": 64,
+    "fmin": 20.0,
+    "fmax": 8000.0,
+    "floor": 1e-06,
+    "window_seconds": 2.0,
+    "frames": 198,
+    "normalization": "z-score over the whole window"
+  },
+  "holdout": {
+    "accuracy": 0.5,
+    "auc": 0.999965250492096
+  },
+  "train_seconds": 616.3,
+  "params": 25745,
+  "size_kib": 31.4
+}
