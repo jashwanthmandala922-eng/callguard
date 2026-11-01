@@ -58,10 +58,12 @@ jobs:
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease
-
+      
+      - name: Rename APK for release
+        run: cp app/build/outputs/apk/release/app-release.apk callguard-release.apk
+      
       - name: Check APK exists
-        run: ls -la app/build/outputs/apk/release/app-release.apk
-
+        run: ls -la callguard-release.apk
       - name: Get version from build.gradle.kts
         id: version
         run: |
