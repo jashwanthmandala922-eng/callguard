@@ -2,8 +2,11 @@ name: Build APK and Create Release
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,8 +24,6 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
 
       - name: Accept SDK licenses
         run: |
@@ -45,6 +46,9 @@ jobs:
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
+
+      - name: Check APK exists
+        run: ls -la app/build/outputs/apk/debug/app-debug.apk
 
       - name: Get version from build.gradle.kts
         id: version
@@ -69,7 +73,7 @@ jobs:
             Version: `${{ steps.version.outputs.version }}`
 
             ### Download
-            - `callguard-debug.apk` — Debug APK (37 MB)
+            - `callguard-debug.apk` — Debug APK
 
             ### Installation
             ```bash
