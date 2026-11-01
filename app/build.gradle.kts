@@ -24,6 +24,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs["release"]
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("RELEASE_KEYSTORE_FILE") ?: "release-keystore.jks")
+            storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "callguard"
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: ""
         }
     }
 

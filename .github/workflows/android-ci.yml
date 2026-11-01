@@ -46,11 +46,18 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug
+      - name: Create release keystore (if secrets provided)
+        run: |
+          if [ -n "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
+            echo "RELEASE_KEYSTORE_FILE=$(pwd)/release-keystore.jks" >> $GITHUB_ENV
+          fi
+
+      - name: Build Release APK
+        run: ./gradlew :app:assembleRelease
 
       - name: Check APK exists
-        run: ls -la app/build/outputs/apk/debug/app-debug.apk
+        run: ls -la app/build/outputs/apk/release/app-release.apk
 
       - name: Get version from build.gradle.kts
         id: version
@@ -75,14 +82,14 @@ jobs:
             Version: `${{ steps.version.outputs.version }}`
 
             ### Download
-            - `callguard-debug.apk` — Debug APK
+            - `callguard-release.apk` — Release APK (signed)
 
             ### Installation
             ```bash
-            adb install -r callguard-debug.apk
+            adb install -r callguard-release.apk
             ```
           draft: false
           prerelease: false
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: app/build/outputs/apk/release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
