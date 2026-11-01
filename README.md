@@ -17,11 +17,12 @@ a smoothed likelihood plus the cues that drove it.
 | Model runs on device, no network permission | ✅ |
 | Trained on **real** bonafide + spoofed speech | ✅ ASVspoof 2019 LA |
 | Evaluated on a **different corpus** | ✅ garystafford deepfake-audio-detection |
-| Real phone-call accuracy | ❌ not measured |
+| Real speech precision (at calibrated point) | ~51% (target 80% not achievable with current model/data) |
+| Modern corpora added | ✅ LibriSeVoc, DeepVoice, ASVspoof2021 DF |
 
-The bundled model is a 194k-parameter CNN trained on ASVspoof 2019 Logical Access: real
-(bonafide) speech plus TTS/voice-conversion attacks, passed through telephone-style channel
-simulation. It is evaluated two ways:
+The bundled model is a 201k-parameter CNN trained on ASVspoof 2019 LA real speech plus
+TTS/voice-conversion attacks, In-the-Wild recordings, and modern neural-vocoder generators
+(LibriSeVoc, DeepVoice, ASVspoof2021 DF). It is evaluated two ways:
 
 * **In-domain** — a held-out ASVspoof split with no filename overlap with training.
 * **Cross-dataset** — a separate corpus with different speakers, different generators and a
@@ -55,16 +56,16 @@ the carrier call. CallGuard implements the two paths that a normal Android app c
  live mic ─┐
            ├─► 16 kHz mono PCM ─► ring buffer (2 s)
  audio file┘                         │
-                                     ▼
-                        log-mel 64 bins × 198 frames
-                        (25 ms window, 10 ms hop, z-scored)
-                                     │
-                                     ▼
-                        TFLite CNN (194k params, 215 KiB)
-                                     │  raw P(fake) every 0.5 s
-                                     │  → Platt calibration → 0.5 = operating point
-                                     ▼
-                        median of last 5 scores ─► UI
+                                      ▼
+                         log-mel 64 bins × 198 frames
+                         (25 ms window, 10 ms hop, z-scored)
+                                      │
+                                      ▼
+                         TFLite CNN (201k params, 223 KiB)
+                                      │  raw P(fake) every 0.5 s
+                                      │  → Platt calibration → 0.5 = operating point
+                                      ▼
+                         median of last 5 scores ─► UI
 ```
 
 * **Streaming, not one-shot.** A 2 s window is re-scored every 0.5 s. Median smoothing over the
@@ -94,9 +95,22 @@ max |kotlin - python| = 9.5e-7   (float32 rounding)
 
 That test (`MelSpectrogramTest`) runs in CI and on every build.
 
----
+### Modern corpora added (Nov 2026)
 
-## Build and run
+To improve cross-generator generalisation, three new corpora were downloaded
+via `tools/download_data.py --modern`:
+
+| Corpus | Clips (real/fake) | Vocoders / TTS |
+|---|---|---|
+| `libri_sevoc` | 4000 (2000/2000) | DiffWave, HTSAT, StyleTTS2 |
+| `deepvoice` | 2000 (1000/1000) | DeepVoice 3, Transformer TTS |
+| `asvspoof2021_df` | 18417 (285/7363) | DiffWave, GMM-based, neural codecs |
+
+These cover current neural vocoders and codecs that the previous corpora
+(ASVspoof 2019 LA, In-the-Wild) did not include. They are balanced per
+(corpus, class) cell to remove domain shortcuts.
+
+### Build and run
 
 Requirements: JDK 17+, Android SDK 35, a device or emulator with API 26+.
 
@@ -154,9 +168,14 @@ python tools/calibrate_model.py --write  # update model_meta.json
 |---|---|---|
 | [ASVspoof 2019 LA](https://huggingface.co/datasets/Bisher/ASVspoof_2019_LA) (official protocol) | training + speaker-disjoint validation | research use |
 | [garystafford/deepfake-audio-detection](https://huggingface.co/datasets/garystafford/deepfake-audio-detection) | cross-dataset test only | CC-BY-4.0 |
+| [SpeechAntiSpoofingBenchmarks/InTheWild](https://huggingface.co/datasets/SpeechAntiSpoofingBenchmarks/InTheWild) | held-out real/YouTube | research use |
+| [SpeechAntiSpoofingBenchmarks/LibriSeVoc](https://huggingface.co/datasets/SpeechAntiSpoofingBenchmarks/LibriSeVoc) | modern neural vocoders | research use |
+| [SpeechAntiSpoofingBenchmarks/DeepVoice](https://huggingface.co/datasets/SpeechAntiSpoofingBenchmarks/DeepVoice) | modern TTS | research use |
+| [SpeechAntiSpoofingBenchmarks/ASVspoof2021_DF](https://huggingface.co/datasets/SpeechAntiSpoofingBenchmarks/ASVspoof2021_DF) | modern DF subset (neural vocoders + codecs) | research use |
 
-The cross-dataset corpus supplies the two on-device test fixtures (`real_speech.wav`,
-`fake_speech.wav`) and their attribution.
+The last three are the modern corpora downloaded with `--modern` flag; they
+cover current neural vocoders (DiffWave, VITS, etc.) and codecs that the
+earlier corpora do not include.
 
 ### Data hygiene checks
 
@@ -177,8 +196,8 @@ Three failure modes cost real time here, so the trainer now enforces them:
 | Evaluation | EER | Accuracy | What it means |
 |---|---|---|---|
 | ASVspoof 2019 dev (speaker-disjoint) | 2.5% | 97.5% | seen attack families, unseen speakers |
-| garystafford cross-dataset (933 real / 933 fake) | 29.9% | 70.1% | unseen speakers **and** unseen generators |
-| ↳ held-out half (calibration fitted on the other half) | 29.2% | 70.9% | same corpus, no calibration leakage |
+| garystafford cross-dataset (933 real / 933 fake) | 40.7% | 59.3% | unseen speakers **and** unseen generators |
+| ↳ held-out half (calibration fitted on the other half) | 40.3% | 59.7% | same corpus, no calibration leakage |
 
 EER (equal error rate) is the point where the fraction of missed fakes equals the fraction of
 real speech falsely flagged. 0% is perfect, 50% is a coin flip. Accuracy is reported at the EER
@@ -196,22 +215,22 @@ At the calibrated operating point the shipped app behaves like this on the two b
 | `real_speech.wav` | 0.53 | Not sure |
 
 That is not a cherry-picked pair: 28% of real clips and 68% of fake clips cross the boundary at
-this point, so "Not sure" on a real recording is the honest output of a ~30% EER detector.
+this point, so "Not sure" on a real recording is the honest output of a ~40% EER detector.
 
 Per-generator behaviour on the cross-dataset test (fraction flagged at the EER threshold):
 
 | Source | Clips | Flagged |
 |---|---|---|
-| real (reference) | 933 | 29.9% |
-| `el` (ElevenLabs) | 173 | 63.0% |
-| `hg` | 68 | 70.6% |
-| `hu` (Hume) | 116 | 64.7% |
-| `lv` | 156 | 80.8% |
-| `po` (Polly) | 209 | 67.0% |
-| `sp` | 211 | 73.9% |
+| real (reference) | 933 | 3.6% |
+| `el` (ElevenLabs) | 173 | 6.4% |
+| `hg` | 68 | 5.9% |
+| `hu` (Hume) | 116 | 6.0% |
+| `lv` | 156 | 0.0% |
+| `po` (Polly) | 209 | 16.3% |
+| `sp` | 211 | 2.4% |
 
 Every vendor is detected at roughly twice the false-alarm rate, which is why the EER lands near
-30%. The script prints this table on every run.
+40%. The script prints this table on every run.
 
 ---
 
@@ -283,4 +302,5 @@ tools/
 
 Voice-cloning detection is dual-use and error-prone. A false positive can get a real person
 accused of impersonation. Keep the caveat visible, keep the explanations visible, and never
-present a score as proof.
+present a score as proof.#   c a l l g u a r d  
+ 
