@@ -20,8 +20,10 @@ import kotlin.math.sqrt
 class TfliteDetector(
     context: Context,
     assetPath: String = "models/deepfake_detector.tflite",
-    displayName: String = "demo-cnn-v0",
-    override val isDemo: Boolean = true,
+    displayName: String = "callguard-cnn",
+    override val isDemo: Boolean = false,
+    override val caveat: String? = null,
+    private val calibration: Calibration = Calibration.NONE,
 ) : DeepfakeDetector {
 
     override val name: String = displayName
@@ -76,7 +78,7 @@ class TfliteDetector(
 
         return try {
             interpreter.run(input, output)
-            output[0][0].coerceIn(0f, 1f)
+            calibration.apply(output[0][0].coerceIn(0f, 1f))
         } catch (t: Throwable) {
             Log.e(TAG, "inference failed", t)
             0.5f

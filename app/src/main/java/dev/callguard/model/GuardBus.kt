@@ -16,8 +16,8 @@ object GuardBus {
     private val _state = MutableStateFlow(GuardUiState())
     val state: StateFlow<GuardUiState> = _state.asStateFlow()
 
-    fun configureModel(name: String, isDemo: Boolean) = _state.update {
-        it.copy(modelName = name, isDemoModel = isDemo)
+    fun configureModel(name: String, caveat: String?) = _state.update {
+        it.copy(modelName = name, caveat = caveat)
     }
 
     fun liveStarted() = _state.update {

@@ -20,11 +20,8 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val context = getApplication<Application>()
-        val meta = DetectorFactory.meta(context)
-        val name = meta?.optString("name") ?: "demo-cnn"
-        val params = meta?.optInt("params") ?: 0
-        val label = if (params > 0) "$name · ${params / 1000}k params" else name
-        GuardBus.configureModel(label, DetectorFactory.isDemoModel(context))
+        val info = DetectorFactory.info(context)
+        GuardBus.configureModel(info.label, info.caveat)
     }
 
     /**

@@ -62,7 +62,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    implementation("org.tensorflow:tensorflow-lite:2.17.0")
+    // LiteRT (the successor to TensorFlow Lite) 1.4.2 keeps the
+    // org.tensorflow.lite.Interpreter API but ships 16 KB-aligned native
+    // libraries. The old org.tensorflow:tensorflow-lite:2.17.0 .so files are
+    // 4 KB-aligned, which triggers Android's compatibility warning on
+    // 16 KB-page devices.
+    implementation("com.google.ai.edge.litert:litert:1.4.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 

@@ -39,7 +39,7 @@ class LiveGuardService : Service() {
         createChannel()
 
         val detector = DetectorFactory.create(this)
-        GuardBus.configureModel(detector.name, detector.isDemo)
+        GuardBus.configureModel(detector.name, detector.caveat)
         engine = DetectionEngine(detector)
     }
 

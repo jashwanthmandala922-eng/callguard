@@ -17,7 +17,7 @@ data class GuardUiState(
     val spectrogram: List<FloatArray> = emptyList(),
     val level: Float = 0f,
     val modelName: String = "loading…",
-    val isDemoModel: Boolean = true,
+    val caveat: String? = null,
     val progress: Float? = null,
     val secondsAnalyzed: Float = 0f,
     val error: String? = null,

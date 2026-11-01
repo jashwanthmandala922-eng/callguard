@@ -1,14 +1,74 @@
 {
-  "name": "callguard-demo-cnn",
-  "version": "0.1.0",
-  "purpose": "DEMO ONLY - trained on synthetic audio, no real-world validation",
+  "name": "callguard-asvspoof-cnn",
+  "version": "0.3.0",
+  "training": {
+    "dataset": "ASVspoof 2019 Logical Access (Bisher mirror of the official protocol)",
+    "train_clips": 5160,
+    "validation_clips": 3000,
+    "validation_speakers": 20,
+    "cross_clips": 1866,
+    "cross_dataset": "garystafford/deepfake-audio-detection (CC-BY-4.0)",
+    "epochs": 10,
+    "seconds": 501.3
+  },
+  "metrics": {
+    "headline_eer": 0.29904,
+    "headline_set": "garystafford cross-dataset",
+    "validation_eer": 0.02533,
+    "validation_accuracy": 0.97467,
+    "cross_dataset_eer": 0.29796,
+    "cross_dataset_accuracy": 0.70204,
+    "tflite_validation_eer": 0.02533,
+    "tflite_cross_dataset_eer": 0.29904,
+    "eer_threshold": 0.00047,
+    "calibrated_threshold": 0.5
+  },
+  "per_source": {
+    "el": {
+      "clips": 173,
+      "mean_score": 0.017,
+      "flagged_rate": 0.6301
+    },
+    "hg": {
+      "clips": 68,
+      "mean_score": 0.0087,
+      "flagged_rate": 0.7059
+    },
+    "hu": {
+      "clips": 116,
+      "mean_score": 0.0259,
+      "flagged_rate": 0.6466
+    },
+    "lv": {
+      "clips": 156,
+      "mean_score": 0.0132,
+      "flagged_rate": 0.8077
+    },
+    "po": {
+      "clips": 209,
+      "mean_score": 0.02,
+      "flagged_rate": 0.6699
+    },
+    "real": {
+      "clips": 933,
+      "mean_score": 0.0049,
+      "flagged_rate": 0.299
+    },
+    "sp": {
+      "clips": 211,
+      "mean_score": 0.0087,
+      "flagged_rate": 0.7393
+    }
+  },
+  "caveat": "Trained on ASVspoof 2019 LA (TTS/VC attacks), validated on its speaker-disjoint dev set and on a separate CC-BY corpus. Real phone calls, unseen generators and adversarial audio are not validated. Treat the score as a hint, not proof.",
+  "purpose": "Research demo. Not a security control.",
   "input_shape": [
     1,
     64,
     198,
     1
   ],
-  "output": "sigmoid fake probability",
+  "output": "calibrated P(fake) in [0,1]; 0.5 is the fitted operating point",
   "dsp": {
     "sample_rate": 16000,
     "n_fft": 512,
@@ -22,11 +82,15 @@
     "frames": 198,
     "normalization": "z-score over the whole window"
   },
-  "holdout": {
-    "accuracy": 0.5,
-    "auc": 0.999965250492096
-  },
-  "train_seconds": 616.3,
-  "params": 25745,
-  "size_kib": 31.4
+  "params": 193569,
+  "size_kib": 214.8,
+  "calibration": {
+    "method": "platt",
+    "a": 0.492985,
+    "b": 3.74206,
+    "fit_on": "disjoint half of garystafford cross-dataset (933 real / 933 fake)",
+    "held_out_eer": 0.29154,
+    "held_out_accuracy": 0.70847,
+    "note": "applies sigmoid(a*logit(p)+b); monotone, so EER is unchanged. Picks the operating point for unseen-generator audio."
+  }
 }

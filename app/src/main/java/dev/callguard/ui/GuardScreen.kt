@@ -201,16 +201,13 @@ private fun VerdictCard(state: GuardUiState) {
         if (state.risk != null) {
             Spacer(Modifier.height(12.dp))
             Text(
+                // Deliberately no "confidence" figure: with a ~30% cross-dataset
+                // EER, a distance-from-0.5 number would overstate certainty.
                 text = buildString {
                     append(if (state.mode == Mode.LIVE) "Streaming" else "Analysed")
                     append(" · ")
                     append("%.1f".format(state.secondsAnalyzed))
                     append(" s")
-                    state.confidence?.let {
-                        append(" · confidence ")
-                        append((it * 100).roundToInt())
-                        append("%")
-                    }
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = GuardPalette.TextSecondary,
@@ -357,17 +354,16 @@ private fun Controls(running: Boolean, onToggleLive: () -> Unit, onPickFile: () 
 @Composable
 private fun Footer(state: GuardUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (state.isDemoModel) {
+        if (state.caveat != null) {
             Text(
-                "DEMO MODEL",
+                "ABOUT THIS MODEL",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp,
                 color = GuardPalette.Uncertain,
             )
             Text(
-                "Trained on synthetic speech, not real deepfakes. Treat the score as a plumbing demo, " +
-                    "not as evidence about a real call.",
+                state.caveat,
                 style = MaterialTheme.typography.bodySmall,
                 color = GuardPalette.TextSecondary,
             )

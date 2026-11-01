@@ -1,0 +1,6 @@
+Test fixtures from garystafford/deepfake-audio-detection (CC-BY-4.0),
+https://huggingface.co/datasets/garystafford/deepfake-audio-detection
+16 kHz mono, 3 s centre crop, peak-normalised.
+
+real_speech.wav: yt_0000_p2_part_167.flac
+fake_speech.wav: el_0001_c_part_002.flac

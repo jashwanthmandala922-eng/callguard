@@ -15,14 +15,16 @@ import org.junit.runner.RunWith
 /**
  * End-to-end check on a real device/emulator: asset loading, TFLite inference, DSP.
  *
- * The fixtures are synthetic (see tools/make_samples.py), so this only proves the
- * plumbing discriminates. It says nothing about real-world accuracy.
+ * The fixtures are real clips from garystafford/deepfake-audio-detection (CC-BY-4.0),
+ * a corpus the model is evaluated on but never trained on. This proves the shipped
+ * artefact and the Kotlin feature path agree with the training pipeline; it is a
+ * smoke test, not a measure of accuracy.
  */
 @RunWith(AndroidJUnit4::class)
 class DetectorInstrumentedTest {
 
     @Test
-    fun syntheticFixtureScoresHigherThanHumanFixture() {
+    fun fakeFixtureScoresHigherThanRealFixture() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val appContext = instrumentation.targetContext
         val fixtureContext = instrumentation.context
@@ -30,23 +32,23 @@ class DetectorInstrumentedTest {
         val detector = DetectorFactory.create(appContext)
         assertTrue("expected the bundled TFLite model, got ${detector.name}", detector is TfliteDetector)
 
-        val human = loadWav(fixtureContext, "human_like.wav").copyOf(MelConfig.WINDOW_SAMPLES)
-        val synthetic = loadWav(fixtureContext, "synthetic_like.wav").copyOf(MelConfig.WINDOW_SAMPLES)
+        val real = loadWav(fixtureContext, "real_speech.wav").copyOf(MelConfig.WINDOW_SAMPLES)
+        val fake = loadWav(fixtureContext, "fake_speech.wav").copyOf(MelConfig.WINDOW_SAMPLES)
 
         val engine = DetectionEngine(detector)
-        val humanScore = engine.analyzeWindow(human).rawRisk
+        val realScore = engine.analyzeWindow(real).rawRisk
         engine.reset()
-        val syntheticScore = engine.analyzeWindow(synthetic).rawRisk
+        val fakeScore = engine.analyzeWindow(fake).rawRisk
 
         Log.i(
             "CallGuard/Test",
-            "human=$humanScore synthetic=$syntheticScore detector=${detector.name}",
+            "real=$realScore fake=$fakeScore detector=${detector.name}",
         )
-        println("human=$humanScore synthetic=$syntheticScore detector=${detector.name}")
+        println("real=$realScore fake=$fakeScore detector=${detector.name}")
 
         assertTrue(
-            "synthetic fixture ($syntheticScore) should score above the human fixture ($humanScore)",
-            syntheticScore > humanScore,
+            "fake fixture ($fakeScore) should score above the real fixture ($realScore)",
+            fakeScore > realScore,
         )
     }
 

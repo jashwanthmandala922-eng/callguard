@@ -11,6 +11,9 @@ class HeuristicDetector : DeepfakeDetector {
 
     override val name: String = "heuristic (no model)"
     override val isDemo: Boolean = true
+    override val caveat: String =
+        "The TFLite model failed to load, so this is a hand-tuned DSP heuristic. " +
+            "Do not read anything into the score."
 
     override fun score(mel: Array<FloatArray>): Float {
         val cues = Features.cues(mel)

@@ -13,6 +13,9 @@ interface DeepfakeDetector {
     /** True when this is the demo model / heuristic, not a validated detector. */
     val isDemo: Boolean
 
+    /** Honest one-liner about what the model can and cannot tell you. */
+    val caveat: String? get() = null
+
     /**
      * @param mel [frames][melBin] natural-log mel power, frames oldest-first.
      * @return probability that the window is synthetic, 0..1.

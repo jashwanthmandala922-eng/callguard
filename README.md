@@ -8,20 +8,26 @@ a smoothed likelihood plus the cues that drove it.
 
 ---
 
-## Status: working demo, not a product
+## Status: working app, honest limits
 
 | | |
 |---|---|
 | Live mic capture → score every 0.5 s | ✅ works |
 | File analysis (any audio the platform can decode) | ✅ works |
 | Model runs on device, no network permission | ✅ |
-| Bundled model trained on **real** deepfakes | ❌ demo only |
-| Real-world accuracy | ❌ not measured |
+| Trained on **real** bonafide + spoofed speech | ✅ ASVspoof 2019 LA |
+| Evaluated on a **different corpus** | ✅ garystafford deepfake-audio-detection |
+| Real phone-call accuracy | ❌ not measured |
 
-The bundled model (`app/src/main/assets/models/deepfake_detector.tflite`) is a 25.7k-parameter
-CNN trained on **synthetic** speech and synthetic vocoder artefacts. It exists to prove the whole
-path — PCM → log-mel → TFLite → smoothed score → UI — and to keep the app honest about what is
-and isn't verified. Do not use its output to accuse anyone of anything.
+The bundled model is a 194k-parameter CNN trained on ASVspoof 2019 Logical Access: real
+(bonafide) speech plus TTS/voice-conversion attacks, passed through telephone-style channel
+simulation. It is evaluated two ways:
+
+* **In-domain** — a held-out ASVspoof split with no filename overlap with training.
+* **Cross-dataset** — a separate corpus with different speakers, different generators and a
+  different recording chain. This is the number that matters.
+
+Do not use its output to accuse anyone of anything.
 
 ---
 
@@ -54,20 +60,27 @@ the carrier call. CallGuard implements the two paths that a normal Android app c
                         (25 ms window, 10 ms hop, z-scored)
                                      │
                                      ▼
-                        TFLite CNN (25.7k params, 31 KiB)
-                                     │  P(synthetic) every 0.5 s
+                        TFLite CNN (194k params, 215 KiB)
+                                     │  raw P(fake) every 0.5 s
+                                     │  → Platt calibration → 0.5 = operating point
                                      ▼
                         median of last 5 scores ─► UI
 ```
 
 * **Streaming, not one-shot.** A 2 s window is re-scored every 0.5 s. Median smoothing over the
   last 5 raw scores is what stops the verdict flickering.
+* **Calibrated decision boundary.** The raw sigmoid ranks well but is compressed: on
+  unseen-generator audio the equal-error point sat near `5e-4`, so a UI that thresholds at `0.5`
+  would label everything human. A Platt map (`sigmoid(a·logit(p)+b)`) fitted on a disjoint half
+  of the cross-dataset corpus moves that operating point to `0.5`. It is strictly monotone, so it
+  cannot change the measured EER — only make the number and the verdict meaningful.
 * **Explainability.** Three DSP cues (high-frequency energy, spectral flatness, frame-to-frame
-  change) are shown next to the score. They are hand-tuned demo heuristics, not calibrated
+  change) are shown next to the score. They are hand-tuned heuristics, not calibrated
   probabilities — but they make the verdict inspectable instead of magic.
 * **Telephony-aware training.** Both classes go through the same channel simulation
   (3.4/4/6/8 kHz band limits, µ-law companding, noise, packet loss, clipping), so the model
-  cannot cheat by learning "narrowband = fake".
+  cannot cheat by learning "narrowband = fake". Validation and cross-dataset features are
+  deliberately *not* augmented, so the reported numbers are on clean audio.
 
 ### Why the DSP is duplicated in Kotlin and Python
 
@@ -95,6 +108,12 @@ adb shell am start -n dev.callguard/.MainActivity
 
 Or open the folder in Android Studio and press Run.
 
+Inference uses [LiteRT](https://github.com/google-ai-edge/LiteRT) 1.4.2 (the successor to
+TensorFlow Lite). It keeps the `org.tensorflow.lite.Interpreter` API but ships 16 KB-aligned
+native libraries; the older `org.tensorflow:tensorflow-lite:2.17.0` artefacts are 4 KB-aligned
+and trigger Android's "not 16 KB compatible" warning on newer devices. `tools/check_elf_alignment.py`
+verifies the shipped `.so` files.
+
 **Live mode:** put the call on speakerphone, tap *Start live guard*, grant the mic permission.
 A foreground notification stays up while it listens — Android requires that, and so should you.
 
@@ -104,27 +123,110 @@ analysed with a 1 s hop.
 
 ---
 
-## Training the demo model
+## Training on real data
+
+Data is not committed (research licences, ~3 GB). Fetch it first:
 
 ```bash
-python tools/train_demo_model.py --samples 1280 --epochs 3   # ~7 min on CPU
-python tools/make_samples.py                                 # test + QA fixtures
-./gradlew :app:testDebugUnitTest                             # feature parity
-./gradlew :app:connectedDebugAndroidTest                     # on-device inference
+python tools/download_data.py --splits train validation --cross
 ```
 
-The script writes the `.tflite`, `model_meta.json`, and the Kotlin parity fixture. Everything is
-synthetic: glottal-pulse speech shaped by time-varying formants, plus a "fake" class made by
-cepstral envelope smoothing and random-phase resynthesis. See the module docstring for the exact
-recipe and the many ways it differs from real deepfakes.
+* `tools/download_data.py` pulls the parquet shards into `data/` (git-ignored).
+* `tools/train_real_model.py` caches log-mel features, trains, reports EER, exports TFLite and
+  writes `model_meta.json`.
+
+```bash
+python tools/train_real_model.py --train-limit 10000 --val-limit 3000 --epochs 10
+```
+
+A full run is ~10 minutes on CPU and produces a ~215 KiB model. It also fits the display
+calibration on a disjoint half of the cross-dataset corpus and writes it into `model_meta.json`.
+To refit or inspect calibration without retraining:
+
+```bash
+python tools/calibrate_model.py          # distributions + held-out check
+python tools/calibrate_model.py --write  # update model_meta.json
+```
+
+### Datasets
+
+| Corpus | Role | Licence |
+|---|---|---|
+| [ASVspoof 2019 LA](https://huggingface.co/datasets/Bisher/ASVspoof_2019_LA) (official protocol) | training + speaker-disjoint validation | research use |
+| [garystafford/deepfake-audio-detection](https://huggingface.co/datasets/garystafford/deepfake-audio-detection) | cross-dataset test only | CC-BY-4.0 |
+
+The cross-dataset corpus supplies the two on-device test fixtures (`real_speech.wav`,
+`fake_speech.wav`) and their attribution.
+
+### Data hygiene checks
+
+Three failure modes cost real time here, so the trainer now enforces them:
+
+1. **Label polarity.** The model's target is P(fake). Corpora disagree (`0=fake` vs `1=fake`),
+   and inverting it silently trains a perfectly backwards detector that still reports 95%
+   training accuracy. All mapping goes through `to_fake_target()`.
+2. **Speaker leakage.** ASVspoof's protocol is speaker-disjoint, but mirrors can break it. The
+   trainer reads `speaker_id` and **refuses to run** if train and validation share a speaker.
+3. **Augmentation in eval.** Validation and cross-dataset features are built without channel
+   simulation, so the reported numbers are on clean audio.
+
+---
+
+## Results
+
+| Evaluation | EER | Accuracy | What it means |
+|---|---|---|---|
+| ASVspoof 2019 dev (speaker-disjoint) | 2.5% | 97.5% | seen attack families, unseen speakers |
+| garystafford cross-dataset (933 real / 933 fake) | 29.9% | 70.1% | unseen speakers **and** unseen generators |
+| ↳ held-out half (calibration fitted on the other half) | 29.2% | 70.9% | same corpus, no calibration leakage |
+
+EER (equal error rate) is the point where the fraction of missed fakes equals the fraction of
+real speech falsely flagged. 0% is perfect, 50% is a coin flip. Accuracy is reported at the EER
+threshold, not at an arbitrary 0.5.
+
+The gap is the story: on ASVspoof's own attack families the model is strong, and on a corpus
+built from different TTS vendors and YouTube recordings it degrades sharply. The second row is
+the realistic expectation for a phone call, not the first.
+
+At the calibrated operating point the shipped app behaves like this on the two bundled fixtures:
+
+| Fixture | Calibrated score | Verdict |
+|---|---|---|
+| `fake_speech.wav` | 0.81 | Likely synthetic |
+| `real_speech.wav` | 0.53 | Not sure |
+
+That is not a cherry-picked pair: 28% of real clips and 68% of fake clips cross the boundary at
+this point, so "Not sure" on a real recording is the honest output of a ~30% EER detector.
+
+Per-generator behaviour on the cross-dataset test (fraction flagged at the EER threshold):
+
+| Source | Clips | Flagged |
+|---|---|---|
+| real (reference) | 933 | 29.9% |
+| `el` (ElevenLabs) | 173 | 63.0% |
+| `hg` | 68 | 70.6% |
+| `hu` (Hume) | 116 | 64.7% |
+| `lv` | 156 | 80.8% |
+| `po` (Polly) | 209 | 67.0% |
+| `sp` | 211 | 73.9% |
+
+Every vendor is detected at roughly twice the false-alarm rate, which is why the EER lands near
+30%. The script prints this table on every run.
+
+---
 
 ## Tests
 
 | Test | What it proves |
 |---|---|
 | `MelSpectrogramTest` (JVM) | Kotlin features match the training pipeline to 1e-6 |
-| `DetectorInstrumentedTest` (device) | asset loads, TFLite runs, synthetic fixture outscores human fixture |
+| `CalibrationTest` (JVM) | the EER threshold maps to 0.5 and the map is monotone |
+| `DetectorInstrumentedTest` (device) | asset loads, TFLite runs, a real fake clip outscores a real one |
 | `./gradlew :app:assembleDebug` | the app actually builds |
+
+```bash
+./gradlew :app:testDebugUnitTest :app:assembleDebug :app:connectedDebugAndroidTest
+```
 
 ---
 
@@ -148,31 +250,37 @@ app/src/main/java/dev/callguard/
   ml/
     DeepfakeDetector.kt        interface
     TfliteDetector.kt          on-device inference
+    Calibration.kt             Platt map so 0.5 is the operating point
     HeuristicDetector.kt       fallback when the model is missing
     DetectionEngine.kt         windowing + median smoothing
   ui/                          Compose screen, gauge, spectrogram
 tools/
-  train_demo_model.py          synthesis, training, export, parity fixture
-  make_samples.py              wav fixtures for tests and manual QA
+  download_data.py             fetch ASVspoof + cross-dataset parquet
+  train_real_model.py          cache, train, EER, calibration, export, metadata
+  calibrate_model.py           inspect score distributions, refit calibration
+  check_elf_alignment.py       verify 16 KB page alignment of bundled .so files
+  ui_dump.py                   summarise `uiautomator dump` output
+  train_demo_model.py          shared DSP + synthetic demo generator
+  make_samples.py              synthetic wav fixtures for manual QA
+  make_test_fixtures.py        real wav fixtures for the instrumented test
 ```
 
 ---
 
-## Next steps for a detector you could actually trust
+## What would make this trustworthy
 
-1. **Real data.** ASVspoof 2019/2021 LA, WaveFake, In-the-Wild, FakeAVCeleb. Hold out an entire
-   dataset, not random clips — cross-dataset performance is where the truth shows up.
-2. **Harder augmentation.** Real codec round-trips (AMR-NB/WB, Opus, AAC), reverb, far-field,
-   overlapping speech, and the exact 8 kHz telephony path.
-3. **A stronger backbone.** AASIST-lite or a small conformer, distilled down to 1–3 MB int8.
-4. **Calibration.** Report a calibrated probability and an operating point, not a raw sigmoid.
-   Track EER and min-tDCF, and show the user the trade-off.
-5. **Adversarial testing.** Pitch shift, time stretch, compression, and a determined attacker.
-6. **Product framing.** "Suspicious artefacts detected" beats "this is a deepfake". Always pair a
-   score with advice to verify through another channel.
+1. **More diverse attacks.** ASVspoof 2019 LA is TTS/VC on clean-ish speech; add codec
+   round-trips (AMR-NB/WB, Opus, AAC), reverb, far-field and overlapping speech.
+2. **A stronger backbone.** AASIST-lite or a small conformer, distilled to 1–3 MB int8.
+3. **Better calibration and a chosen operating point.** Platt scaling is in place, but the
+   operating point is fixed at EER. A product should expose a threshold (fewer false alarms vs
+   fewer misses) and track EER plus min-tDCF per update.
+4. **Adversarial testing.** Pitch shift, time stretch, compression, and a determined attacker.
+5. **Product framing.** "Suspicious artefacts detected" beats "this is a deepfake". Always pair
+   a score with advice to verify through another channel.
 
 ## Ethics
 
 Voice-cloning detection is dual-use and error-prone. A false positive can get a real person
-accused of impersonation. Keep the demo labelling, keep the explanations visible, and never
+accused of impersonation. Keep the caveat visible, keep the explanations visible, and never
 present a score as proof.
