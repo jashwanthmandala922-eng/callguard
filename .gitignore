@@ -19,3 +19,16 @@ data/
 
 # Local screenshots
 shot*.png
+
+# TFLite / model files (binary, not diff-friendly)
+*.tflite
+model_meta.json
+
+# Android Studio
+*.iws
+*.iml
+*.press
+
+# OS specific
+.DS_Store
+Thumbs.db
