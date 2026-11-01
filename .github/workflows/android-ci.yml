@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK and Create Release
 
 on:
   push:
@@ -46,12 +46,37 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: callguard-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+      - name: Get version from build.gradle.kts
+        id: version
+        run: |
+          VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Get APK size
-        run: echo "APK_SIZE=$(stat -c%s app/build/outputs/apk/debug/app-debug.apk)" >> $GITHUB_OUTPUT
+      - name: Get short commit SHA
+        id: commit
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}-${{ steps.commit.outputs.sha }}
+          name: CallGuard v${{ steps.version.outputs.version }} (${{ steps.commit.outputs.sha }})
+          body: |
+            ## CallGuard Release
+
+            Built from commit `${{ steps.commit.outputs.sha }}`
+            Version: `${{ steps.version.outputs.version }}`
+
+            ### Download
+            - `callguard-debug.apk` — Debug APK (37 MB)
+
+            ### Installation
+            ```bash
+            adb install -r callguard-debug.apk
+            ```
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
