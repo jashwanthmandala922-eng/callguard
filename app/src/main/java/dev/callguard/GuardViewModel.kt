@@ -93,6 +93,10 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setCallRecordingEnabled(enabled: Boolean) {
+        GuardBus.setCallRecordingEnabled(enabled)
+    }
+
     fun clearError() = GuardBus.dismissError()
 
     fun reportError(message: String) = GuardBus.fail(message)

@@ -385,6 +385,30 @@ private fun Footer(state: GuardUiState) {
             color = GuardPalette.TextSecondary,
         )
         Spacer(Modifier.height(4.dp))
+
+        // Call recording status
+        if (state.mode == Mode.IDLE && !state.running) {
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!state.callRecordingEnabled) {
+                    Button(
+                        onClick = { viewModel.setCallRecordingEnabled(true) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = GuardPalette.Accent,
+                            contentColor = Color(0xFF00121F),
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Text("Enable call recording for analysis")
+                    }
+                } else {
+                    Text("Call recording enabled - AI will analyse ended calls", style = MaterialTheme.typography.labelSmall, color = GuardPalette.Human)
+                }
+            }
+        }
     }
 }
 

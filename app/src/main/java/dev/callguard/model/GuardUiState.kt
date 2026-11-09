@@ -21,6 +21,7 @@ data class GuardUiState(
     val progress: Float? = null,
     val secondsAnalyzed: Float = 0f,
     val error: String? = null,
+    val callRecordingEnabled: Boolean = false,  // NEW: whether call recording is enabled
 ) {
     companion object {
         fun verdictFor(risk: Float): Verdict = when {

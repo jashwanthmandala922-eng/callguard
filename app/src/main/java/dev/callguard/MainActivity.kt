@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.callguard.ui.CallGuardTheme
 import dev.callguard.ui.GuardScreen
+import kotlin.run.captureLastValue
 
 class MainActivity : ComponentActivity() {
 

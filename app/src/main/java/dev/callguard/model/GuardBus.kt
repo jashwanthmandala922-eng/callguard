@@ -33,6 +33,7 @@ object GuardBus {
             secondsAnalyzed = 0f,
             progress = null,
             error = null,
+            callRecordingEnabled = false,  // Reset when starting live mode
         )
     }
 
@@ -111,4 +112,66 @@ object GuardBus {
     fun dismissError() = _state.update { it.copy(error = null) }
 
     fun reset() = _state.update { it.copy(mode = Mode.IDLE, running = false) }
-}
+
+    /** Call recording started - UI can show "recording call..." */
+    fun callRecordingStarted() = _state.update {
+        it.copy(mode = Mode.IDLE, running = false, progress = 0f, secondsAnalyzed = 0f)
+    }
+
+    /** Call recording ended - triggers AI analysis */
+    fun callRecordingEnded() = _state.update {
+        it.copy(
+            mode = Mode.IDLE,
+            running = false,
+            progress = null,
+            secondsAnalyzed = 0f,
+            error = null,
+        )
+    }
+
+    /** Save recorded file path and trigger analysis */
+    fun callRecordingSaved(recordingPath: String) = _state.update {
+        it.copy(
+            mode = Mode.IDLE,
+            running = false,
+            progress = null,
+            secondsAnalyzed = 0f,
+            error = null,
+        )
+        // Trigger analysis in background
+        AnalysisManager.analyzeRecording(recordingPath, applicationContext!!)
+    }
+
+    /** Set whether call recording is enabled */
+    fun setCallRecordingEnabled(enabled: Boolean) = _state.update {
+        it.copy(callRecordingEnabled = enabled)
+    }
+
+    /** Call recording started - UI can show "recording call..." */
+    fun callRecordingStarted() = _state.update {
+        it.copy(mode = Mode.IDLE, running = false, progress = 0f, secondsAnalyzed = 0f)
+    }
+
+    /** Call recording ended - triggers AI analysis */
+    fun callRecordingEnded() = _state.update {
+        it.copy(
+            mode = Mode.IDLE,
+            running = false,
+            progress = null,
+            secondsAnalyzed = 0f,
+            error = null,
+        )
+    }
+
+    /** Save recorded file path and trigger analysis */
+    fun callRecordingSaved(recordingPath: String) = _state.update {
+        it.copy(
+            mode = Mode.IDLE,
+            running = false,
+            progress = null,
+            secondsAnalyzed = 0f,
+            error = null,
+        )
+        // Trigger analysis in background
+        AnalysisManager.analyzeRecording(recordingPath, applicationContext!!)
+    }
